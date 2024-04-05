@@ -1,4 +1,4 @@
-package quote
+package quote_api
 
 import (
 	"encoding/json"
@@ -12,14 +12,9 @@ import (
 	"net/http"
 )
 
-func GetQuote(from, to string) (decimal.Decimal, error) {
-	conf, err := config.LoadConfig()
-	if err != nil {
-		return decimal.Zero, errs.WithMessage(err, "failed to load config")
-	}
-
-	reqStr := fmt.Sprintf(conf.QuoteAPI, from, to)
-	req, err := http.NewRequest("GET", reqStr, nil)
+func GetQuote(from, to string, conf *config.Config) (decimal.Decimal, error) {
+	reqStr := fmt.Sprintf(conf.QuoteAPI.URL, from, to)
+	req, err := http.NewRequest(http.MethodGet, reqStr, nil)
 	if err != nil {
 		return decimal.Zero, errs.WithMessage(err, "failed to create request")
 	}
@@ -45,14 +40,15 @@ func GetQuote(from, to string) (decimal.Decimal, error) {
 		return decimal.Zero, errs.WithMessage(err, "failed to read response body")
 	}
 
-	var response models.Response
+	var response models.FromAPIResponse
 	if err = json.Unmarshal(body, &response); err != nil {
 		return decimal.Zero, errs.WithMessagef(err, "failed to unmarshal response, body: %v", body)
 	}
 
 	rate, found := response.Rates[to]
 	if !found {
-		return decimal.Zero, errs.WithMessagef(err, "failed to find EUR rate")
+		return decimal.Zero, errs.WithMessagef(err, "failed to find %s rate", to)
 	}
 
+	return rate, nil
 }

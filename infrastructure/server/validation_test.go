@@ -1,33 +1,44 @@
 package server
 
 import (
-	"github.com/mashmorsik/quotation/internal/quotation"
+	"github.com/mashmorsik/quotation/config"
 	"testing"
 )
 
-func TestHTTPServer_validateQuote(t *testing.T) {
-	type fields struct {
-		Config *config.Config
-		Quote  quotation.Quotation
-	}
-	type args struct {
-		quote string
-	}
+func TestHTTPServer_validateQuote_errors(t *testing.T) {
 	tests := []struct {
 		name    string
-		fields  fields
-		args    args
-		wantErr bool
+		quote   string
+		wantErr string
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "empty_quote",
+			quote:   "",
+			wantErr: "currency pair is required",
+		},
+		{
+			name:    "pair_is_too_short",
+			quote:   "EUR/U",
+			wantErr: "currency pair is too short",
+		},
+		{
+			name:    "pair_without_separator",
+			quote:   "EURUSD",
+			wantErr: "currency pair requires separator",
+		},
+		{
+			name:    "invalid_currencies",
+			quote:   "GBR/EUR",
+			wantErr: "currency pair is invalid",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &HTTPServer{
-				Config: tt.fields.Config,
-				Quote:  tt.fields.Quote,
+				Config: &config.Config{
+					Quotations: []string{"EUR", "USD"}},
 			}
-			if err := s.validateQuote(tt.args.quote); (err != nil) != tt.wantErr {
+			if err := s.validateQuote(tt.quote); (err != nil) && err.Error() != tt.wantErr {
 				t.Errorf("validateQuote() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

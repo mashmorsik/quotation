@@ -1,15 +1,15 @@
 package models
 
 import (
-	"github.com/docker/distribution/uuid"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"time"
 )
 
 type Quote struct {
-	ID             uuid.UUID
-	BaseCurrency   string
-	TargetCurrency string
-	Timestamp      time.Time
-	Rate           decimal.Decimal
+	ID             uuid.UUID       `json:"id"`
+	BaseCurrency   string          `json:"base_currency"`
+	TargetCurrency string          `json:"target_currency"`
+	Timestamp      time.Time       `json:"timestamp"`
+	Rate           decimal.Decimal `json:"rate"`
 }

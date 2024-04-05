@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type LatestRequest struct {
+type Pair struct {
 	Quote string `json:"quote"`
 }
 

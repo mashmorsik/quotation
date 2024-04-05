@@ -2,59 +2,63 @@ package quotation
 
 import (
 	"context"
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
-	"github.com/mashmorsik/quotation/repository"
+	"github.com/mashmorsik/logger"
+	"github.com/mashmorsik/quotation/config"
+	"github.com/mashmorsik/quotation/pkg/models"
+	mock_repository "github.com/mashmorsik/quotation/test/testdata/mock_repo"
+	"github.com/shopspring/decimal"
 	"reflect"
 	"testing"
+	"time"
 )
 
-func TestNewQuotation(t *testing.T) {
-	type args struct {
-		ctx  context.Context
-		repo repository.Repository
-		conf *config.Config
-	}
-	tests := []struct {
-		name string
-		args args
-		want *Quotation
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewQuotation(tt.args.ctx, tt.args.repo, tt.args.conf); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewQuotation() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestQuotation_GetLastUpdated(t *testing.T) {
-	type fields struct {
-		Ctx    context.Context
-		Repo   repository.Repository
-		Config *config.Config
-	}
+	logger.BuildLogger(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock_repository.NewMockRepository(ctrl)
+	mockRepo.EXPECT().GetLastUpdated("EUR", "USD").Return(&models.Quote{
+		ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+		BaseCurrency:   "EUR",
+		TargetCurrency: "USD",
+		Timestamp:      time.Time{},
+		Rate:           decimal.NewFromFloat(1.208),
+	}, nil)
+
 	type args struct {
 		from string
 		to   string
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		want    *models.Quote
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "return_quoteID_of_the_last_updated",
+			args: args{"EUR", "USD"},
+			want: &models.Quote{
+				ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+				BaseCurrency:   "EUR",
+				TargetCurrency: "USD",
+				Timestamp:      time.Time{},
+				Rate:           decimal.NewFromFloat(1.208)},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &Quotation{
-				Ctx:    tt.fields.Ctx,
-				Repo:   tt.fields.Repo,
-				Config: tt.fields.Config,
+				Ctx:  context.Background(),
+				Repo: mockRepo,
+				Config: &config.Config{
+					ResponseDelay: 2 * time.Second,
+				},
 			}
 			got, err := q.GetLastUpdated(tt.args.from, tt.args.to)
 			if (err != nil) != tt.wantErr {
@@ -69,31 +73,46 @@ func TestQuotation_GetLastUpdated(t *testing.T) {
 }
 
 func TestQuotation_GetQuotationByID(t *testing.T) {
-	type fields struct {
-		Ctx    context.Context
-		Repo   repository.Repository
-		Config *config.Config
-	}
-	type args struct {
-		quoteID uuid.UUID
-	}
+	logger.BuildLogger(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock_repository.NewMockRepository(ctrl)
+	mockRepo.EXPECT().GetQuotation(uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84")).Return(&models.Quote{
+		ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+		BaseCurrency:   "EUR",
+		TargetCurrency: "USD",
+		Timestamp:      time.Time{},
+		Rate:           decimal.NewFromFloat(1.208),
+	}, nil)
+
 	tests := []struct {
 		name    string
-		fields  fields
-		args    args
+		ID      uuid.UUID
 		want    *models.Quote
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "return_quote_by_quoteID",
+			ID:   uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+			want: &models.Quote{
+				ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+				BaseCurrency:   "EUR",
+				TargetCurrency: "USD",
+				Timestamp:      time.Time{},
+				Rate:           decimal.NewFromFloat(1.208)},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &Quotation{
-				Ctx:    tt.fields.Ctx,
-				Repo:   tt.fields.Repo,
-				Config: tt.fields.Config,
+				Ctx:    context.Background(),
+				Repo:   mockRepo,
+				Config: &config.Config{},
 			}
-			got, err := q.GetQuotationByID(tt.args.quoteID)
+			got, err := q.GetQuotationByID(tt.ID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetQuotationByID() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -106,38 +125,60 @@ func TestQuotation_GetQuotationByID(t *testing.T) {
 }
 
 func TestQuotation_GetQuoteAsync(t *testing.T) {
-	type fields struct {
-		Ctx    context.Context
-		Repo   repository.Repository
-		Config *config.Config
-	}
+	logger.BuildLogger(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock_repository.NewMockRepository(ctrl)
+	mockRepo.EXPECT().AddQuotePair("EUR", "USD").Return(nil)
+	mockRepo.EXPECT().GetLastUpdated("EUR", "USD").Return(&models.Quote{
+		ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+		BaseCurrency:   "EUR",
+		TargetCurrency: "USD",
+		Timestamp:      time.Time{},
+		Rate:           decimal.NewFromFloat(1.208),
+	}, nil)
+
 	type args struct {
 		from string
 		to   string
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		want    uuid.UUID
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "return_quoteID_of_the_last_updated",
+			args:    args{"EUR", "USD"},
+			want:    uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &Quotation{
-				Ctx:    tt.fields.Ctx,
-				Repo:   tt.fields.Repo,
-				Config: tt.fields.Config,
+				Ctx:  context.Background(),
+				Repo: mockRepo,
+				Config: &config.Config{
+					Quotations: []string{"EUR", "USD"},
+					QuoteAPI: struct {
+						URL string `yaml:"url"`
+					}{
+						URL: "https://api.frankfurter.app/latest?from=EUR&to=USD",
+					},
+					ResponseDelay: 2 * time.Second,
+				},
 			}
 			got, err := q.GetQuoteAsync(tt.args.from, tt.args.to)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetQuoteAsync() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetLastUpdated() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetQuoteAsync() got = %v, want %v", got, tt.want)
+				t.Errorf("GetLastUpdated() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
