@@ -1,0 +1,165 @@
+{
+  "info": {
+    "version": "1.0.0",
+    "title": "Quotation API",
+    "description": "API documentation for the HTTP server"
+  },
+  "paths": {
+    "/update": {
+      "post": {
+        "summary": "Update a quote",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/UpdateResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/Pair"
+            }
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ]
+      }
+    },
+    "/get": {
+      "get": {
+        "summary": "Get a quote by ID",
+        "parameters": [
+          {
+            "name": "quoteID",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Quote"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "produces": [
+          "application/json"
+        ]
+      }
+    },
+    "/latest": {
+      "get": {
+        "summary": "Get the latest quote",
+        "parameters": [
+          {
+            "name": "quote",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/LatestResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "produces": [
+          "application/json"
+        ]
+      }
+    }
+  },
+  "swagger": "2.0",
+  "host": "localhost:8080",
+  "schemes": [
+    "http"
+  ],
+  "basePath": "/",
+  "definitions": {
+    "Pair": {
+      "type": "object",
+      "properties": {
+        "quote": {
+          "type": "string"
+        }
+      }
+    },
+    "UpdateResponse": {
+      "type": "object",
+      "properties": {
+        "quoteID": {
+          "type": "string"
+        }
+      }
+    },
+    "Quote": {
+      "type": "object",
+      "properties": {
+        "ID": {
+          "type": "string"
+        },
+        "BaseCurrency": {
+          "type": "string"
+        },
+        "TargetCurrency": {
+          "type": "string"
+        },
+        "Timestamp": {
+          "type": "string"
+        },
+        "Rate": {
+          "type": "string"
+        }
+      }
+    },
+    "LatestResponse": {
+      "type": "object",
+      "properties": {
+        "Rate": {
+          "type": "string"
+        },
+        "LastUpdated": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "x-components": {}
+}

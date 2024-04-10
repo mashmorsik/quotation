@@ -1,19 +1,23 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/mashmorsik/logger"
 	"github.com/mashmorsik/quotation/config"
 	"github.com/mashmorsik/quotation/internal/quotation"
 	"github.com/mashmorsik/quotation/pkg/currency"
-	"github.com/mashmorsik/quotation/pkg/middleware"
+	mw "github.com/mashmorsik/quotation/pkg/middleware"
 	"github.com/mashmorsik/quotation/pkg/models"
 	"github.com/pkg/errors"
+	"github.com/rs/cors"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
-	"strings"
 )
 
 type HTTPServer struct {
@@ -25,18 +29,41 @@ func NewServer(conf *config.Config, quote quotation.Quotation) *HTTPServer {
 	return &HTTPServer{Config: conf, Quote: quote}
 }
 
-func (s *HTTPServer) StartServer() error {
+func (s *HTTPServer) StartServer(ctx context.Context) error {
+
 	router := mux.NewRouter()
 
-	router.HandleFunc("/update", middleware.LoggingMiddleware(s.updateQuote)).Methods(http.MethodPost)
-	router.HandleFunc("/get", middleware.LoggingMiddleware(s.getQuote)).Methods(http.MethodGet)
-	router.HandleFunc("/latest", middleware.LoggingMiddleware(s.getLatestQuote)).Methods(http.MethodGet)
+	router.Handle("/swagger.yaml", http.FileServer(http.Dir("./")))
+	sh := middleware.SwaggerUI(middleware.SwaggerUIOpts{
+		Path:    "/swagger",
+		SpecURL: "swagger.yaml",
+	}, nil)
+	router.Handle("/swagger", sh)
+
+	router.HandleFunc("/update", s.updateQuote).Methods(http.MethodPost)
+	router.HandleFunc("/get", s.getQuote).Methods(http.MethodGet)
+	router.HandleFunc("/latest", s.getLatestQuote).Methods(http.MethodGet)
 
 	logger.Infof("HTTPServer is listening on port: %s\n", s.Config.Server.Port)
 
-	err := http.ListenAndServe(s.Config.Server.Port, router)
-	if err != nil {
-		return errors.WithMessagef(err, "server can't ListenAndServe http requests")
+	router.Use(mw.LoggingMiddleware)
+
+	httpServer := &http.Server{
+		Addr:    s.Config.Server.Port,
+		Handler: cors.AllowAll().Handler(router),
+	}
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		return httpServer.ListenAndServe()
+	})
+	g.Go(func() error {
+		<-gCtx.Done()
+		return httpServer.Shutdown(ctx)
+	})
+
+	if err := g.Wait(); err != nil {
+		return errors.WithMessagef(err, "exit reason: %s \n", err)
 	}
 
 	return nil
@@ -91,22 +118,13 @@ func (s *HTTPServer) updateQuote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) getQuote(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	quoteID := r.URL.Query().Get("quoteID")
+	u, err := uuid.Parse(quoteID)
 	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
+		http.Error(w, "Invalid id", http.StatusBadRequest)
 	}
 
-	var reqBody models.GetRequest
-	err = json.Unmarshal(body, &reqBody)
-	if err != nil {
-		http.Error(w, "Failed to parse JSON body", http.StatusBadRequest)
-		return
-	}
-
-	quoteID := reqBody.ID
-
-	quote, err := s.Quote.GetQuotationByID(quoteID)
+	quote, err := s.Quote.GetQuotationByID(u)
 	if err != nil {
 		http.Error(w, "Failed to get quote", http.StatusNotFound)
 	}
@@ -129,22 +147,17 @@ func (s *HTTPServer) getQuote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) getLatestQuote(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+	qPair := r.URL.Query().Get("quote")
+
+	if err := s.validateQuote(qPair); err != nil {
+		logger.Errf("invalid quotePair: %s", qPair)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var reqBody models.Pair
-	err = json.Unmarshal(body, &reqBody)
-	if err != nil {
-		http.Error(w, "Failed to parse JSON body", http.StatusBadRequest)
-		return
-	}
+	from, to := currency.SeparateCurrency(qPair)
 
-	quoteArr := strings.Split(reqBody.Quote, "/")
-
-	quote, err := s.Quote.GetLastUpdated(quoteArr[0], quoteArr[1])
+	quote, err := s.Quote.GetLastUpdated(from, to)
 	if err != nil {
 		errStr := fmt.Sprintf("Fail to get last updated quote: %v", err)
 		http.Error(w, errStr, http.StatusNotFound)

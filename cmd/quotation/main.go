@@ -49,7 +49,7 @@ func main() {
 	logger.Info("Scheduler started")
 
 	httpServer := server.NewServer(conf, *qq)
-	if err = httpServer.StartServer(); err != nil {
-		logger.Err(err, "start http server failed")
+	if err = httpServer.StartServer(ctx); err != nil {
+		logger.Warn(err.Error())
 	}
 }
