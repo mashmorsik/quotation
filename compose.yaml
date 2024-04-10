@@ -26,7 +26,7 @@ services:
       postgres:
         condition: service_healthy
     networks: ["mynetwork"]
-    command: ["sh", "-c", "sleep 15 && ./app"]
+    command: ./wait-for-postgres.sh postgres ./app
 
 networks:
   mynetwork:
