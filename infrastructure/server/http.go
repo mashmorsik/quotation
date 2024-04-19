@@ -40,9 +40,9 @@ func (s *HTTPServer) StartServer(ctx context.Context) error {
 	}, nil)
 	router.Handle("/swagger", sh)
 
-	router.HandleFunc("/update", s.updateQuote).Methods(http.MethodPost)
-	router.HandleFunc("/get", s.getQuote).Methods(http.MethodGet)
-	router.HandleFunc("/latest", s.getLatestQuote).Methods(http.MethodGet)
+	router.HandleFunc("/update", s.UpdateQuote).Methods(http.MethodPost)
+	router.HandleFunc("/get", s.GetQuote).Methods(http.MethodGet)
+	router.HandleFunc("/latest", s.GetLatestQuote).Methods(http.MethodGet)
 
 	logger.Infof("HTTPServer is listening on port: %s\n", s.Config.Server.Port)
 
@@ -69,7 +69,7 @@ func (s *HTTPServer) StartServer(ctx context.Context) error {
 	return nil
 }
 
-func (s *HTTPServer) updateQuote(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) UpdateQuote(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
@@ -117,7 +117,7 @@ func (s *HTTPServer) updateQuote(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *HTTPServer) getQuote(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) GetQuote(w http.ResponseWriter, r *http.Request) {
 	quoteID := r.URL.Query().Get("quoteID")
 	u, err := uuid.Parse(quoteID)
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *HTTPServer) getQuote(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *HTTPServer) getLatestQuote(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) GetLatestQuote(w http.ResponseWriter, r *http.Request) {
 	qPair := r.URL.Query().Get("quote")
 
 	if err := s.validateQuote(qPair); err != nil {

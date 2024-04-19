@@ -35,6 +35,7 @@ func main() {
 
 	conn := data.MustConnectPostgres(ctx, conf)
 	data.MustMigrate(conn)
+
 	dat := data.NewData(ctx, conn)
 
 	quoteRepo := repository.NewQuoteRepo(ctx, dat)

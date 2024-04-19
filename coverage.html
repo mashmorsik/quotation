@@ -1,0 +1,1027 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>quotation: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/mashmorsik/quotation/cmd/quotation/main.go (0.0%)</option>
+				
+				<option value="file1">github.com/mashmorsik/quotation/config/config.go (0.0%)</option>
+				
+				<option value="file2">github.com/mashmorsik/quotation/cron/cron.go (0.0%)</option>
+				
+				<option value="file3">github.com/mashmorsik/quotation/infrastructure/data/data.go (0.0%)</option>
+				
+				<option value="file4">github.com/mashmorsik/quotation/infrastructure/quote_api/request.go (70.8%)</option>
+				
+				<option value="file5">github.com/mashmorsik/quotation/infrastructure/server/http.go (40.7%)</option>
+				
+				<option value="file6">github.com/mashmorsik/quotation/infrastructure/server/validation.go (91.7%)</option>
+				
+				<option value="file7">github.com/mashmorsik/quotation/internal/quotation/quotation.go (47.9%)</option>
+				
+				<option value="file8">github.com/mashmorsik/quotation/pkg/currency/currency.go (100.0%)</option>
+				
+				<option value="file9">github.com/mashmorsik/quotation/pkg/loc/loc.go (0.0%)</option>
+				
+				<option value="file10">github.com/mashmorsik/quotation/pkg/middleware/logger.go (0.0%)</option>
+				
+				<option value="file11">github.com/mashmorsik/quotation/repository/quotation.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "context"
+        "github.com/mashmorsik/logger"
+        "github.com/mashmorsik/quotation/config"
+        cronSc "github.com/mashmorsik/quotation/cron"
+        "github.com/mashmorsik/quotation/infrastructure/data"
+        "github.com/mashmorsik/quotation/infrastructure/server"
+        "github.com/mashmorsik/quotation/internal/quotation"
+        "github.com/mashmorsik/quotation/repository"
+        "os"
+        "os/signal"
+        "syscall"
+)
+
+func main() <span class="cov0" title="0">{
+        logger.BuildLogger(nil)
+
+        conf, err := config.LoadConfig()
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("Error loading config: %v", err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">ctx, cancel := context.WithCancel(context.Background())
+        sigCh := make(chan os.Signal, 1)
+        signal.Notify(sigCh, syscall.SIGINT, syscall.SIGKILL)
+
+        go func() </span><span class="cov0" title="0">{
+                &lt;-sigCh
+                logger.Infof("context done")
+                cancel()
+        }</span>()
+
+        <span class="cov0" title="0">conn := data.MustConnectPostgres(ctx, conf)
+        data.MustMigrate(conn)
+
+        dat := data.NewData(ctx, conn)
+
+        quoteRepo := repository.NewQuoteRepo(ctx, dat)
+        qq := quotation.NewQuotation(ctx, quoteRepo, conf)
+
+        dt := cronSc.NewData(quoteRepo, conf)
+        _, err = dt.RunScheduler()
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("Error running scheduler: %v", err)
+                return
+        }</span>
+        <span class="cov0" title="0">logger.Info("Scheduler started")
+
+        httpServer := server.NewServer(conf, *qq)
+        if err = httpServer.StartServer(ctx); err != nil </span><span class="cov0" title="0">{
+                logger.Warn(err.Error())
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package config
+
+import (
+        errs "github.com/pkg/errors"
+        "github.com/spf13/viper"
+        "time"
+)
+
+type Config struct {
+        Postgres struct {
+                Host string `yaml:"host"`
+                Port string `yaml:"port"`
+        } `yaml:"postgres"`
+        Quotations []string `yaml:"quotations"`
+        Server     struct {
+                Port string `yaml:"port"`
+        } `yaml:"server"`
+        QuoteAPI struct {
+                URL string `yaml:"url"`
+        } `yaml:"quoteApi"`
+        Cron struct {
+                Location string `yaml:"location"`
+                Period   string `yaml:"period"`
+        } `yaml:"cron"`
+        ResponseDelay time.Duration `yaml:"responseDelay"`
+}
+
+func LoadConfig() (*Config, error) <span class="cov0" title="0">{
+        var config Config
+
+        viper.AddConfigPath("./")
+        viper.SetConfigName("config")
+        viper.SetConfigType("yaml")
+
+        err := viper.ReadInConfig()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessage(err, "failed to read config file")
+        }</span>
+
+        <span class="cov0" title="0">err = viper.Unmarshal(&amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessage(err, "failed to unmarshal config")
+        }</span>
+
+        <span class="cov0" title="0">return &amp;config, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package cronSc
+
+import (
+        "database/sql"
+        "errors"
+        "github.com/go-co-op/gocron"
+        "github.com/google/uuid"
+        "github.com/mashmorsik/logger"
+        "github.com/mashmorsik/quotation/config"
+        "github.com/mashmorsik/quotation/infrastructure/quote_api"
+        "github.com/mashmorsik/quotation/pkg/loc"
+        "github.com/mashmorsik/quotation/pkg/models"
+        "github.com/mashmorsik/quotation/repository"
+        errs "github.com/pkg/errors"
+        "time"
+)
+
+type Scheduler struct {
+        sched *gocron.Scheduler
+}
+
+type Data struct {
+        Repo   repository.Repository
+        Config *config.Config
+        quotes [][]string
+}
+
+func NewScheduler(sched *gocron.Scheduler) *Scheduler <span class="cov0" title="0">{
+        return &amp;Scheduler{sched: sched}
+}</span>
+
+func NewData(repo repository.Repository, conf *config.Config) *Data <span class="cov0" title="0">{
+        return &amp;Data{Repo: repo, Config: conf}
+}</span>
+
+func (s *Scheduler) Sc() *gocron.Scheduler <span class="cov0" title="0">{
+        return s.sched
+}</span>
+
+func StartScheduler() *gocron.Scheduler <span class="cov0" title="0">{
+        location, err := loc.GetLoc()
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("fail to get loc: %v", err)
+                panic(err)</span>
+        }
+        <span class="cov0" title="0">sched := gocron.NewScheduler(location)
+        return sched</span>
+}
+
+func (d *Data) RunScheduler() (*gocron.Scheduler, error) <span class="cov0" title="0">{
+        sc := NewScheduler(StartScheduler())
+        scheduler := sc.Sc()
+        defer scheduler.StartAsync()
+
+        _, err := scheduler.Cron(d.Config.Cron.Period).Do(func() </span><span class="cov0" title="0">{
+                quotePairs, err := d.Repo.GetQuotePairs()
+                if err != nil </span><span class="cov0" title="0">{
+                        if errors.Is(err, sql.ErrNoRows) </span><span class="cov0" title="0">{
+                                logger.Errf("no quote pairs in database: %v", err)
+                        }</span> else<span class="cov0" title="0"> {
+                                logger.Errf("fail to GetQuotePairs: %v", err)
+                                return
+                        }</span>
+                }
+
+                <span class="cov0" title="0">for _, pair := range quotePairs </span><span class="cov0" title="0">{
+                        rate, err := quote_api.GetQuote(pair[0], pair[1], d.Config)
+                        if err != nil </span><span class="cov0" title="0">{
+                                logger.Errf("fail to GetQuote for pair: %v, err: %s", pair, err)
+                                return
+                        }</span>
+
+                        <span class="cov0" title="0">quote := &amp;models.Quote{
+                                ID:             uuid.New(),
+                                BaseCurrency:   pair[0],
+                                TargetCurrency: pair[1],
+                                Timestamp:      time.Now(),
+                                Rate:           rate,
+                        }
+                        err = d.Repo.AddQuotation(quote)
+                        if err != nil </span><span class="cov0" title="0">{
+                                logger.Errf("fail to AddQuotation: %v", err)
+                                return
+                        }</span>
+                }
+        })
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessage(err, "fail to Create CronJob")
+        }</span>
+
+        <span class="cov0" title="0">return scheduler, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package data
+
+import (
+        "context"
+        "database/sql"
+        "errors"
+        "fmt"
+        "github.com/golang-migrate/migrate/v4"
+        "github.com/golang-migrate/migrate/v4/database/postgres"
+        _ "github.com/golang-migrate/migrate/v4/source/file"
+        _ "github.com/lib/pq"
+        "github.com/mashmorsik/logger"
+        "github.com/mashmorsik/quotation/config"
+        "os"
+)
+
+type Data struct {
+        Ctx context.Context
+        db  *sql.DB
+}
+
+func NewData(ctx context.Context, db *sql.DB) *Data <span class="cov0" title="0">{
+        if db == nil </span><span class="cov0" title="0">{
+                panic("db is nil")</span>
+        }
+        <span class="cov0" title="0">return &amp;Data{Ctx: ctx, db: db}</span>
+}
+
+func (r *Data) Master() *sql.DB <span class="cov0" title="0">{
+        return r.db
+}</span>
+
+func MustConnectPostgres(ctx context.Context, conf *config.Config) *sql.DB <span class="cov0" title="0">{
+        connectionStr := fmt.Sprintf("postgres://postgres:mysecretpassword@%s:%s/postgres?sslmode=disable&amp;application_name=quotation&amp;connect_timeout=5",
+                conf.Postgres.Host, conf.Postgres.Port)
+
+        connection, err := sql.Open("postgres", connectionStr)
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">if err = connection.Ping(); err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">go func() </span><span class="cov0" title="0">{
+                &lt;-ctx.Done()
+                err = connection.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        logger.Errf("can't close database connection, err: %s", err)
+                        return
+                }</span>
+        }()
+
+        <span class="cov0" title="0">logger.Infof("connected to db: %+v", connection.Stats())
+        return connection</span>
+}
+
+func MustMigrate(connection *sql.DB) <span class="cov0" title="0">{
+        driver, err := postgres.WithInstance(connection, &amp;postgres.Config{})
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">path, err := os.Getwd()
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">migrationPath := fmt.Sprintf("file://%s/migration", path)
+        fmt.Printf("migrationPath : %s\n", migrationPath)
+
+        m, err := migrate.NewWithDatabaseInstance(
+                migrationPath,
+                "postgres", driver)
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">if err = m.Up(); err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, migrate.ErrNoChange) </span><span class="cov0" title="0">{
+                        logger.Infof("no changes in migration, skip")
+
+                }</span> else<span class="cov0" title="0"> {
+                        panic(err)</span>
+                }
+        }
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package quote_api
+
+import (
+        "encoding/json"
+        "fmt"
+        "github.com/mashmorsik/logger"
+        "github.com/mashmorsik/quotation/config"
+        "github.com/mashmorsik/quotation/pkg/models"
+        errs "github.com/pkg/errors"
+        "github.com/shopspring/decimal"
+        "io"
+        "net/http"
+)
+
+func GetQuote(from, to string, conf *config.Config) (decimal.Decimal, error) <span class="cov8" title="1">{
+        reqStr := fmt.Sprintf(conf.QuoteAPI.URL, from, to)
+        req, err := http.NewRequest(http.MethodGet, reqStr, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return decimal.Zero, errs.WithMessage(err, "failed to create request")
+        }</span>
+
+        <span class="cov8" title="1">res, err := http.DefaultClient.Do(req)
+        if err != nil </span><span class="cov0" title="0">{
+                return decimal.Zero, errs.WithMessagef(err, "failed to do request: %v", req)
+        }</span>
+        <span class="cov8" title="1">defer func(Body io.ReadCloser) </span><span class="cov8" title="1">{
+                err = Body.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        logger.Errf("failed to close response body: %v", err)
+                        return
+                }</span>
+        }(res.Body)
+
+        <span class="cov8" title="1">if res.StatusCode != http.StatusOK </span><span class="cov8" title="1">{
+                return decimal.Zero, errs.WithMessagef(err, "invalid response status: %v", res.StatusCode)
+        }</span>
+
+        <span class="cov8" title="1">body, err := io.ReadAll(res.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                return decimal.Zero, errs.WithMessage(err, "failed to read response body")
+        }</span>
+
+        <span class="cov8" title="1">var response models.FromAPIResponse
+        if err = json.Unmarshal(body, &amp;response); err != nil </span><span class="cov0" title="0">{
+                return decimal.Zero, errs.WithMessagef(err, "failed to unmarshal response, body: %v", body)
+        }</span>
+
+        <span class="cov8" title="1">rate, found := response.Rates[to]
+        if !found </span><span class="cov0" title="0">{
+                return decimal.Zero, errs.WithMessagef(err, "failed to find %s rate", to)
+        }</span>
+
+        <span class="cov8" title="1">return rate, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package server
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "github.com/go-openapi/runtime/middleware"
+        "github.com/google/uuid"
+        "github.com/gorilla/mux"
+        "github.com/mashmorsik/logger"
+        "github.com/mashmorsik/quotation/config"
+        "github.com/mashmorsik/quotation/internal/quotation"
+        "github.com/mashmorsik/quotation/pkg/currency"
+        mw "github.com/mashmorsik/quotation/pkg/middleware"
+        "github.com/mashmorsik/quotation/pkg/models"
+        "github.com/pkg/errors"
+        "github.com/rs/cors"
+        "golang.org/x/sync/errgroup"
+        "io"
+        "net/http"
+)
+
+type HTTPServer struct {
+        Config *config.Config
+        Quote  quotation.Quotation
+}
+
+func NewServer(conf *config.Config, quote quotation.Quotation) *HTTPServer <span class="cov8" title="1">{
+        return &amp;HTTPServer{Config: conf, Quote: quote}
+}</span>
+
+func (s *HTTPServer) StartServer(ctx context.Context) error <span class="cov0" title="0">{
+
+        router := mux.NewRouter()
+
+        router.Handle("/swagger.yaml", http.FileServer(http.Dir("./")))
+        sh := middleware.SwaggerUI(middleware.SwaggerUIOpts{
+                Path:    "/swagger",
+                SpecURL: "swagger.yaml",
+        }, nil)
+        router.Handle("/swagger", sh)
+
+        router.HandleFunc("/update", s.UpdateQuote).Methods(http.MethodPost)
+        router.HandleFunc("/get", s.GetQuote).Methods(http.MethodGet)
+        router.HandleFunc("/latest", s.GetLatestQuote).Methods(http.MethodGet)
+
+        logger.Infof("HTTPServer is listening on port: %s\n", s.Config.Server.Port)
+
+        router.Use(mw.LoggingMiddleware)
+
+        httpServer := &amp;http.Server{
+                Addr:    s.Config.Server.Port,
+                Handler: cors.AllowAll().Handler(router),
+        }
+
+        g, gCtx := errgroup.WithContext(ctx)
+        g.Go(func() error </span><span class="cov0" title="0">{
+                return httpServer.ListenAndServe()
+        }</span>)
+        <span class="cov0" title="0">g.Go(func() error </span><span class="cov0" title="0">{
+                &lt;-gCtx.Done()
+                return httpServer.Shutdown(ctx)
+        }</span>)
+
+        <span class="cov0" title="0">if err := g.Wait(); err != nil </span><span class="cov0" title="0">{
+                return errors.WithMessagef(err, "exit reason: %s \n", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (s *HTTPServer) UpdateQuote(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        body, err := io.ReadAll(r.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Failed to read request body", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">var reqBody models.Pair
+        err = json.Unmarshal(body, &amp;reqBody)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Failed to parse JSON body", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if err = s.validateQuote(reqBody.Quote); err != nil </span><span class="cov0" title="0">{
+                logger.Errf("invalid quotePair: %s", reqBody.Quote)
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">from, to := currency.SeparateCurrency(reqBody.Quote)
+
+        quoteID, err := s.Quote.GetQuoteAsync(from, to)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("fail to GetQuoteAsync, for %s/%s", from, to)
+                http.Error(w, "fail to GetQuoteAsync", http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov8" title="1">response := models.UpdateResponse{QuoteID: quoteID}
+
+        jsonData, err := json.Marshal(response)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("failed to marshal JSON: %v", err)
+                http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+
+        _, err = w.Write(jsonData)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("failed to write response: %v", err)
+                http.Error(w, "Failed to write response", http.StatusInternalServerError)
+                return
+        }</span>
+}
+
+func (s *HTTPServer) GetQuote(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        quoteID := r.URL.Query().Get("quoteID")
+        u, err := uuid.Parse(quoteID)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Invalid id", http.StatusBadRequest)
+        }</span>
+
+        <span class="cov8" title="1">quote, err := s.Quote.GetQuotationByID(u)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Failed to get quote", http.StatusNotFound)
+        }</span>
+
+        <span class="cov8" title="1">jsonData, err := json.Marshal(quote)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("failed to marshal JSON: %v", err)
+                http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+
+        _, err = w.Write(jsonData)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("failed to write response: %v", err)
+                http.Error(w, "Failed to write response", http.StatusInternalServerError)
+                return
+        }</span>
+}
+
+func (s *HTTPServer) GetLatestQuote(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        qPair := r.URL.Query().Get("quote")
+
+        if err := s.validateQuote(qPair); err != nil </span><span class="cov0" title="0">{
+                logger.Errf("invalid quotePair: %s", qPair)
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">from, to := currency.SeparateCurrency(qPair)
+
+        quote, err := s.Quote.GetLastUpdated(from, to)
+        if err != nil </span><span class="cov0" title="0">{
+                errStr := fmt.Sprintf("Fail to get last updated quote: %v", err)
+                http.Error(w, errStr, http.StatusNotFound)
+        }</span>
+
+        <span class="cov8" title="1">latestResponse := &amp;models.LatestResponse{
+                Rate:        quote.Rate,
+                LastUpdated: quote.Timestamp,
+        }
+
+        jsonData, err := json.Marshal(latestResponse)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("failed to marshal JSON: %v", err)
+                http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "application/json")
+
+        _, err = w.Write(jsonData)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errf("failed to write response: %v", err)
+                http.Error(w, "Failed to write response", http.StatusInternalServerError)
+                return
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package server
+
+import (
+        "errors"
+        "github.com/mashmorsik/quotation/pkg/currency"
+        "slices"
+        "strings"
+)
+
+func (s *HTTPServer) validateQuote(quote string) error <span class="cov8" title="1">{
+        if quote == "" </span><span class="cov8" title="1">{
+                return errors.New("currency pair is required")
+        }</span>
+        <span class="cov8" title="1">if len([]rune(quote)) &lt; 6 </span><span class="cov8" title="1">{
+                return errors.New("currency pair is too short")
+        }</span>
+
+        <span class="cov8" title="1">if !strings.Contains(quote, "/") </span><span class="cov8" title="1">{
+                return errors.New("currency pair requires separator")
+        }</span>
+
+        <span class="cov8" title="1">from, to := currency.SeparateCurrency(quote)
+
+        if from == to </span><span class="cov0" title="0">{
+                return errors.New("currencies are the same")
+        }</span>
+
+        <span class="cov8" title="1">if !slices.Contains(s.Config.Quotations, from) || !slices.Contains(s.Config.Quotations, to) </span><span class="cov8" title="1">{
+                return errors.New("currency pair is invalid")
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package quotation
+
+import (
+        "context"
+        "github.com/google/uuid"
+        "github.com/mashmorsik/quotation/config"
+        "github.com/mashmorsik/quotation/infrastructure/quote_api"
+        "github.com/mashmorsik/quotation/pkg/models"
+        "github.com/mashmorsik/quotation/repository"
+        errs "github.com/pkg/errors"
+        "time"
+)
+
+type Quotation struct {
+        Ctx    context.Context
+        Repo   repository.Repository
+        Config *config.Config
+}
+
+func NewQuotation(ctx context.Context, repo repository.Repository, conf *config.Config) *Quotation <span class="cov0" title="0">{
+        return &amp;Quotation{Ctx: ctx, Repo: repo, Config: conf}
+}</span>
+
+func (q *Quotation) GetQuoteAsync(from, to string) (uuid.UUID, error) <span class="cov8" title="1">{
+        quoteID := uuid.New()
+
+        rate, err := quote_api.GetQuote(from, to, q.Config)
+        if err != nil </span><span class="cov0" title="0">{
+                return uuid.UUID{}, errs.WithMessagef(err, "failed to get quote for %s/%s", from, to)
+        }</span>
+
+        <span class="cov8" title="1">quote := &amp;models.Quote{
+                ID:             quoteID,
+                BaseCurrency:   from,
+                TargetCurrency: to,
+                Timestamp:      time.Now(),
+                Rate:           rate,
+        }
+
+        err = q.Repo.AddQuotePair(quote.BaseCurrency, quote.TargetCurrency)
+        if err != nil </span><span class="cov0" title="0">{
+                return uuid.UUID{}, errs.WithMessagef(err, "failed to AddQuotePair, for: %v\n", quote)
+        }</span>
+
+        <span class="cov8" title="1">quoteLatest, err := q.Repo.GetLastUpdated(quote.BaseCurrency, quote.TargetCurrency)
+        if err != nil </span><span class="cov0" title="0">{
+                return uuid.UUID{}, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v\n", quote)
+        }</span>
+
+        <span class="cov8" title="1">now := time.Now().UTC()
+        if quoteLatest != nil </span><span class="cov8" title="1">{
+                if quoteLatest.Timestamp.Add(q.Config.ResponseDelay).After(now) </span><span class="cov8" title="1">{
+                        return quoteLatest.ID, nil
+                }</span>
+        }
+
+        <span class="cov0" title="0">if err = q.Repo.AddQuotation(quote); err != nil </span><span class="cov0" title="0">{
+                return uuid.UUID{}, errs.WithMessagef(err, "failed to AddQuotation, for: %v\n", quote)
+        }</span>
+        <span class="cov0" title="0">return quoteID, nil</span>
+}
+
+func (q *Quotation) GetQuotationByID(quoteID uuid.UUID) (*models.Quote, error) <span class="cov8" title="1">{
+        quote, err := q.Repo.GetQuotation(quoteID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessagef(err, "failed to GetQuotationByID, for: %v", quoteID)
+        }</span>
+
+        <span class="cov8" title="1">return quote, nil</span>
+}
+
+func (q *Quotation) GetLastUpdated(from, to string) (*models.Quote, error) <span class="cov8" title="1">{
+        quotePairs, err := q.Repo.GetQuotePairs()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v", from)
+        }</span>
+
+        <span class="cov8" title="1">if len(quotePairs) == 0 </span><span class="cov0" title="0">{
+                quoteID, err := q.GetQuoteAsync(from, to)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v", from)
+                }</span>
+                <span class="cov0" title="0">quote, err := q.GetQuotationByID(quoteID)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v", quoteID)
+                }</span>
+                <span class="cov0" title="0">return quote, nil</span>
+        }
+
+        <span class="cov8" title="1">for _, pair := range quotePairs </span><span class="cov8" title="1">{
+                if pair[0] == from &amp;&amp; pair[1] == to </span><span class="cov8" title="1">{
+                        quote, err := q.Repo.GetLastUpdated(from, to)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, errs.WithMessagef(err, "failed to GetLastUpdated for %s/%s", from, to)
+                        }</span>
+                        <span class="cov8" title="1">return quote, nil</span>
+                } else<span class="cov0" title="0"> {
+                        quoteID, err := q.GetQuoteAsync(from, to)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v", from)
+                        }</span>
+                        <span class="cov0" title="0">quote, err := q.GetQuotationByID(quoteID)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v", quoteID)
+                        }</span>
+                        <span class="cov0" title="0">return quote, nil</span>
+                }
+        }
+
+        <span class="cov0" title="0">return nil, errs.WithMessagef(err, "failed to GetLastUpdated, for: %v", from)</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package currency
+
+import "strings"
+
+func SeparateCurrency(currencies string) (string, string) <span class="cov8" title="1">{
+        return strings.Split(currencies, "/")[0], strings.Split(currencies, "/")[1]
+}</span>
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package loc
+
+import (
+        "github.com/mashmorsik/quotation/config"
+        errs "github.com/pkg/errors"
+        "time"
+)
+
+func GetLoc() (*time.Location, error) <span class="cov0" title="0">{
+        conf, err := config.LoadConfig()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessage(err, "failed to load config")
+        }</span>
+
+        <span class="cov0" title="0">loc, err := time.LoadLocation(conf.Cron.Location)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessage(err, "failed to load timezone")
+        }</span>
+        <span class="cov0" title="0">return loc, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package middleware
+
+import (
+        "github.com/mashmorsik/logger"
+        "net/http"
+        "time"
+)
+
+func LoggingMiddleware(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                start := time.Now()
+
+                logger.Infof("Started %s %s", r.Method, r.URL.Path)
+
+                next.ServeHTTP(w, r)
+                logger.Infof("Completed %s %s in %v", r.Method, r.URL.Path, time.Since(start))
+        }</span>)
+}
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package repository
+
+import (
+        "context"
+        "database/sql"
+        "errors"
+        "github.com/google/uuid"
+        "github.com/mashmorsik/logger"
+        "github.com/mashmorsik/quotation/infrastructure/data"
+        "github.com/mashmorsik/quotation/pkg/models"
+        errs "github.com/pkg/errors"
+        "time"
+)
+
+type QuoteRepo struct {
+        Ctx  context.Context
+        data *data.Data
+}
+
+func NewQuoteRepo(ctx context.Context, data *data.Data) *QuoteRepo <span class="cov0" title="0">{
+        return &amp;QuoteRepo{Ctx: ctx, data: data}
+}</span>
+
+func (qr *QuoteRepo) AddQuotePair(from, to string) error <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(qr.Ctx, time.Second*5)
+        defer cancel()
+
+        qPair, err := qr.GetQuotePair(from, to)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if qPair != nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">res, err := qr.data.Master().ExecContext(ctx, `
+                INSERT INTO quote_pair (base_currency, target_currency)
+                VALUES ($1, $2)`, from, to)
+        if err != nil </span><span class="cov0" title="0">{
+                return errs.WithMessagef(err, "failed to add quote pair to database, "+
+                        "from: %s, to: %s\n", from, to)
+        }</span>
+        <span class="cov0" title="0">ra, _ := res.RowsAffected()
+        logger.Infof("rows affected: %v", ra)
+
+        return nil</span>
+}
+
+func (qr *QuoteRepo) GetQuotePair(from, to string) (*int32, error) <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(qr.Ctx, time.Second*5)
+        defer cancel()
+
+        var quotePairId int32
+
+        err := qr.data.Master().QueryRowContext(ctx,
+                `SELECT id 
+                FROM quote_pair
+                WHERE base_currency = $1 AND target_currency = $2`, from, to).Scan(&amp;quotePairId)
+        if err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, sql.ErrNoRows) </span><span class="cov0" title="0">{
+                        return nil, nil
+                }</span>
+
+                <span class="cov0" title="0">return nil, errs.WithMessagef(err, "failed to exec query: GetQuotePair")</span>
+        }
+
+        <span class="cov0" title="0">return &amp;quotePairId, nil</span>
+}
+
+func (qr *QuoteRepo) GetQuotePairs() ([][]string, error) <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(qr.Ctx, time.Second*5)
+        defer cancel()
+
+        var quotePairs [][]string
+
+        query := `
+                SELECT base_currency, target_currency
+                FROM quote_pair`
+
+        rows, err := qr.data.Master().QueryContext(ctx, query)
+        if err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, sql.ErrNoRows) </span><span class="cov0" title="0">{
+                        return nil, errs.WithMessage(err, "no quote pairs found")
+                }</span> else<span class="cov0" title="0"> {
+                        return nil, errs.WithMessagef(err, "failed to exec query: %s", query)
+                }</span>
+        }
+        <span class="cov0" title="0">defer func(rows *sql.Rows) </span><span class="cov0" title="0">{
+                err = rows.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        logger.Errf("failed to close rows: %s", err.Error())
+                        return
+                }</span>
+        }(rows)
+
+        <span class="cov0" title="0">for rows.Next() </span><span class="cov0" title="0">{
+                var quotePair []string
+                var baseCurrency string
+                var targetCurrency string
+
+                if err = rows.Scan(&amp;baseCurrency, &amp;targetCurrency); err != nil </span><span class="cov0" title="0">{
+                        return nil, errs.WithMessagef(err, "failed to scan row")
+                }</span>
+                <span class="cov0" title="0">quotePair = append(quotePair, baseCurrency, targetCurrency)
+                quotePairs = append(quotePairs, quotePair)</span>
+        }
+
+        <span class="cov0" title="0">return quotePairs, nil</span>
+}
+
+func (qr *QuoteRepo) AddQuotation(q *models.Quote) error <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(qr.Ctx, time.Second*5)
+        defer cancel()
+
+        query := `
+                INSERT INTO quotation (id, base_currency, target_currency, rate, time_updated) 
+                VALUES ($1, $2, $3, $4, $5)`
+
+        _, err := qr.data.Master().ExecContext(ctx, query, q.ID, q.BaseCurrency, q.TargetCurrency, q.Rate, q.Timestamp)
+        if err != nil </span><span class="cov0" title="0">{
+                return errs.WithMessagef(err, "failed to add quote for quoteID: %s", q.ID)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (qr *QuoteRepo) GetQuotation(id uuid.UUID) (*models.Quote, error) <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(qr.Ctx, time.Second*5)
+        defer cancel()
+
+        var q models.Quote
+
+        query := `
+                SELECT id, base_currency, target_currency, rate, time_updated
+                FROM quotation
+                WHERE id = $1`
+
+        err := qr.data.Master().QueryRowContext(ctx, query, id).Scan(&amp;q.ID, &amp;q.BaseCurrency, &amp;q.TargetCurrency, &amp;q.Rate, &amp;q.Timestamp)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, errs.WithMessagef(err, "failed to get quote for id: %s", id)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;q, nil</span>
+}
+
+func (qr *QuoteRepo) GetLastUpdated(from, to string) (*models.Quote, error) <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(qr.Ctx, time.Second*5)
+        defer cancel()
+
+        var q models.Quote
+
+        err := qr.data.Master().QueryRowContext(ctx, `
+                SELECT * 
+                FROM quotation
+                WHERE base_currency = $1 AND target_currency = $2
+                ORDER BY time_updated DESC 
+                LIMIT 1`, from, to).
+                Scan(&amp;q.ID, &amp;q.BaseCurrency, &amp;q.TargetCurrency, &amp;q.Rate, &amp;q.Timestamp)
+
+        if err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, sql.ErrNoRows) </span><span class="cov0" title="0">{
+                        return nil, nil
+                }</span>
+                <span class="cov0" title="0">return nil, errs.WithMessagef(err, "failed to get quote for %s/%s", from, to)</span>
+        }
+
+        <span class="cov0" title="0">return &amp;q, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

@@ -21,6 +21,7 @@ func TestQuotation_GetLastUpdated(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock_repository.NewMockRepository(ctrl)
+	mockRepo.EXPECT().GetQuotePairs().Return([][]string{{"EUR", "USD"}}, nil)
 	mockRepo.EXPECT().GetLastUpdated("EUR", "USD").Return(&models.Quote{
 		ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
 		BaseCurrency:   "EUR",
@@ -130,15 +131,17 @@ func TestQuotation_GetQuoteAsync(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockRepo := mock_repository.NewMockRepository(ctrl)
-	mockRepo.EXPECT().AddQuotePair("EUR", "USD").Return(nil)
-	mockRepo.EXPECT().GetLastUpdated("EUR", "USD").Return(&models.Quote{
+	quote := &models.Quote{
 		ID:             uuid.MustParse("3f8a26f7-97f8-45a5-bda0-1af96b6b7d84"),
 		BaseCurrency:   "EUR",
 		TargetCurrency: "USD",
-		Timestamp:      time.Time{},
+		Timestamp:      time.Now().UTC(),
 		Rate:           decimal.NewFromFloat(1.208),
-	}, nil)
+	}
+
+	mockRepo := mock_repository.NewMockRepository(ctrl)
+	mockRepo.EXPECT().AddQuotePair("EUR", "USD").Return(nil)
+	mockRepo.EXPECT().GetLastUpdated("EUR", "USD").Return(quote, nil)
 
 	type args struct {
 		from string
@@ -169,7 +172,7 @@ func TestQuotation_GetQuoteAsync(t *testing.T) {
 					}{
 						URL: "https://api.frankfurter.app/latest?from=EUR&to=USD",
 					},
-					ResponseDelay: 2 * time.Second,
+					ResponseDelay: 5 * time.Second,
 				},
 			}
 			got, err := q.GetQuoteAsync(tt.args.from, tt.args.to)
